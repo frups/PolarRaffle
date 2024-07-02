@@ -15,6 +15,7 @@ contract PolarRaffle{
     uint256 public ticketPrice;
     uint256 public disposedTicketsPerRaffle;
     uint256 public raffleId;
+    uint256 public noTicketsThatLastUserBought;
 
     mapping(uint256 => address) private ticketPerRaffleAddressMap;
     mapping(uint256 => address) private raffleRewardsAddressMap;
@@ -37,18 +38,15 @@ contract PolarRaffle{
             raffleRewardsAddressMap[raffleId++]=ticketPerRaffleAddressMap[winTicketId];
             disposedTicketsPerRaffle=0;
         }
-        
-        uint256 maxNoTicketsSenderCanBuy = msg.value / ticketPrice;
-        uint256 valueToReturn = msg.value - maxNoTicketsSenderCanBuy * ticketPrice;
-        uint256 realNoTicketsSenderReceived = _disposeTickets(msg.sender, maxNoTicketsSenderCanBuy);
 
-        valueToReturn += (maxNoTicketsSenderCanBuy-realNoTicketsSenderReceived) * ticketPrice;
+        (bool success, uint256 maxNoTicketsSenderCanBuy) = Math.tryDiv(msg.value, ticketPrice);
+        require(success==true, "division error was ticketPrice zero ?");
+        uint256 valueToReturn = msg.value - maxNoTicketsSenderCanBuy * ticketPrice;
+        noTicketsThatLastUserBought = _disposeTickets(msg.sender, maxNoTicketsSenderCanBuy);
+
+        valueToReturn += (maxNoTicketsSenderCanBuy-noTicketsThatLastUserBought) * ticketPrice;
 
         payable(msg.sender).transfer(valueToReturn);
-    }
-
-    function isRaffleFull() external view returns(bool){
-        return (_isRaffleFull());
     }
 
     function _disposeTickets(address ticketsOwner, uint256 maxNoTicketsSenderCanBuy) internal returns(uint256){
@@ -60,11 +58,39 @@ contract PolarRaffle{
         return noDisposedTickets;
     }
 
+    function _drawTicket() internal view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, raffleId))) % 10;
+    }
+
     function _isRaffleFull() internal view returns(bool){
         return (disposedTicketsPerRaffle>=maxNoTicketPerRaffle);
     }
 
-    function _drawTicket() internal view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, raffleId))) % 10;
+    function isRaffleFull() external view returns(bool){
+        return (_isRaffleFull());
+    }
+
+    function getMaxNoTicketPerRaffle() external view returns(uint256){
+        return (maxNoTicketPerRaffle);
+    }
+
+    function getTicketPrice() external view returns(uint256){
+        return (ticketPrice);
+    }
+
+    function getDisposedTicketsPerRaffle() external view returns(uint256){
+        return (disposedTicketsPerRaffle);
+    }
+
+    function getRaffleId() external view returns(uint256){
+        return (raffleId);
+    }
+
+    function getNoTicketsThatLastUserBought() external view returns(uint256){
+        return (noTicketsThatLastUserBought);
+    }
+
+    function getAddressThatBoughtLastTicket() external view returns(address){
+        return ticketPerRaffleAddressMap[disposedTicketsPerRaffle];
     }
 }
