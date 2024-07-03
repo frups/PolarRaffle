@@ -17,6 +17,8 @@ contract PolarRaffle{
     uint256 public raffleId;
     uint256 public noTicketsThatLastUserBought;
 
+    address public playerThatWonLastRaffle;
+
     mapping(uint256 => address) private ticketPerRaffleAddressMap;
     mapping(uint256 => address) private raffleRewardsAddressMap;
 
@@ -25,9 +27,12 @@ contract PolarRaffle{
         ticketPrice = _ticketPrice;
         disposedTicketsPerRaffle = 0;
         raffleId = 0;
+        noTicketsThatLastUserBought = 0;
     }
 
-    function buyTicket() external payable{
+    
+
+    function buyTicket() public payable returns(uint256){
         require(
             msg.value >= ticketPrice,//TODO: ogarnac decimals
             "Sended value must be enough to buy at least one ticket"
@@ -35,7 +40,8 @@ contract PolarRaffle{
 
         if(_isRaffleFull()) {//draw winner from previous raffle and start a new one
             uint256 winTicketId = _drawTicket();
-            raffleRewardsAddressMap[raffleId++]=ticketPerRaffleAddressMap[winTicketId];
+            playerThatWonLastRaffle = ticketPerRaffleAddressMap[winTicketId];
+            raffleRewardsAddressMap[raffleId++]=playerThatWonLastRaffle;
             disposedTicketsPerRaffle=0;
         }
 
@@ -46,7 +52,12 @@ contract PolarRaffle{
 
         valueToReturn += (maxNoTicketsSenderCanBuy-noTicketsThatLastUserBought) * ticketPrice;
 
-        payable(msg.sender).transfer(valueToReturn);
+        //payable(msg.sender).transfer(valueToReturn);
+        (bool success2,) = msg.sender.call{value:valueToReturn}("");
+        if(!success2){
+            revert();
+        }
+        return noTicketsThatLastUserBought;
     }
 
     function _disposeTickets(address ticketsOwner, uint256 maxNoTicketsSenderCanBuy) internal returns(uint256){
@@ -66,31 +77,35 @@ contract PolarRaffle{
         return (disposedTicketsPerRaffle>=maxNoTicketPerRaffle);
     }
 
-    function isRaffleFull() external view returns(bool){
+    function isRaffleFull() public view returns(bool){
         return (_isRaffleFull());
     }
 
-    function getMaxNoTicketPerRaffle() external view returns(uint256){
+    function getMaxNoTicketPerRaffle() public view returns(uint256){
         return (maxNoTicketPerRaffle);
     }
 
-    function getTicketPrice() external view returns(uint256){
+    function getTicketPrice() public view returns(uint256){
         return (ticketPrice);
     }
 
-    function getDisposedTicketsPerRaffle() external view returns(uint256){
+    function getDisposedTicketsPerRaffle() public view returns(uint256){
         return (disposedTicketsPerRaffle);
     }
 
-    function getRaffleId() external view returns(uint256){
+    function getRaffleId() public view returns(uint256){
         return (raffleId);
     }
 
-    function getNoTicketsThatLastUserBought() external view returns(uint256){
+    function getNoTicketsThatLastUserBought() public view returns(uint256){
         return (noTicketsThatLastUserBought);
     }
 
-    function getAddressThatBoughtLastTicket() external view returns(address){
-        return ticketPerRaffleAddressMap[disposedTicketsPerRaffle];
+    function getAddressThatBoughtLastTicket() public view returns(address){
+        return ticketPerRaffleAddressMap[(disposedTicketsPerRaffle-1)];
+    }
+
+    function getPlayerThatWonLastRaffle() public view returns(address){
+        return playerThatWonLastRaffle;
     }
 }
