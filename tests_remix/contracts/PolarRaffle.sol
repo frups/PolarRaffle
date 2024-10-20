@@ -15,6 +15,9 @@ contract PolarRaffle{
     uint256 public ticketPrice;
     uint256 public disposedTicketsPerRaffle;
     uint256 public raffleId;
+    uint256 public noTicketsThatLastUserBought;
+
+    address public playerThatWonLastRaffle;
 
     mapping(uint256 => address) private ticketPerRaffleAddressMap;
     mapping(uint256 => address) private raffleRewardsAddressMap;
@@ -24,9 +27,12 @@ contract PolarRaffle{
         ticketPrice = _ticketPrice;
         disposedTicketsPerRaffle = 0;
         raffleId = 0;
+        noTicketsThatLastUserBought = 0;
     }
 
-    function buyTicket() external payable{
+    
+
+    function buyTicket() public payable returns(uint256){
         require(
             msg.value >= ticketPrice,//TODO: ogarnac decimals
             "Sended value must be enough to buy at least one ticket"
@@ -34,21 +40,24 @@ contract PolarRaffle{
 
         if(_isRaffleFull()) {//draw winner from previous raffle and start a new one
             uint256 winTicketId = _drawTicket();
-            raffleRewardsAddressMap[raffleId++]=ticketPerRaffleAddressMap[winTicketId];
+            playerThatWonLastRaffle = ticketPerRaffleAddressMap[winTicketId];
+            raffleRewardsAddressMap[raffleId++]=playerThatWonLastRaffle;
             disposedTicketsPerRaffle=0;
         }
-        
-        uint256 maxNoTicketsSenderCanBuy = msg.value / ticketPrice;
+
+        (bool success, uint256 maxNoTicketsSenderCanBuy) = Math.tryDiv(msg.value, ticketPrice);
+        require(success==true, "division error was ticketPrice zero ?");
         uint256 valueToReturn = msg.value - maxNoTicketsSenderCanBuy * ticketPrice;
-        uint256 realNoTicketsSenderReceived = _disposeTickets(msg.sender, maxNoTicketsSenderCanBuy);
+        noTicketsThatLastUserBought = _disposeTickets(msg.sender, maxNoTicketsSenderCanBuy);
 
-        valueToReturn += (maxNoTicketsSenderCanBuy-realNoTicketsSenderReceived) * ticketPrice;
+        valueToReturn += (maxNoTicketsSenderCanBuy-noTicketsThatLastUserBought) * ticketPrice;
 
-        payable(msg.sender).transfer(valueToReturn);
-    }
-
-    function isRaffleFull() external view returns(bool){
-        return (_isRaffleFull());
+        //payable(msg.sender).transfer(valueToReturn);
+        (bool success2,) = msg.sender.call{value:valueToReturn}("");
+        if(!success2){
+            revert();
+        }
+        return noTicketsThatLastUserBought;
     }
 
     function _disposeTickets(address ticketsOwner, uint256 maxNoTicketsSenderCanBuy) internal returns(uint256){
@@ -60,11 +69,43 @@ contract PolarRaffle{
         return noDisposedTickets;
     }
 
+    function _drawTicket() internal view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, raffleId))) % 10;
+    }
+
     function _isRaffleFull() internal view returns(bool){
         return (disposedTicketsPerRaffle>=maxNoTicketPerRaffle);
     }
 
-    function _drawTicket() internal view returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender, raffleId))) % 10;
+    function isRaffleFull() public view returns(bool){
+        return (_isRaffleFull());
+    }
+
+    function getMaxNoTicketPerRaffle() public view returns(uint256){
+        return (maxNoTicketPerRaffle);
+    }
+
+    function getTicketPrice() public view returns(uint256){
+        return (ticketPrice);
+    }
+
+    function getDisposedTicketsPerRaffle() public view returns(uint256){
+        return (disposedTicketsPerRaffle);
+    }
+
+    function getRaffleId() public view returns(uint256){
+        return (raffleId);
+    }
+
+    function getNoTicketsThatLastUserBought() public view returns(uint256){
+        return (noTicketsThatLastUserBought);
+    }
+
+    function getAddressThatBoughtLastTicket() public view returns(address){
+        return ticketPerRaffleAddressMap[(disposedTicketsPerRaffle-1)];
+    }
+
+    function getPlayerThatWonLastRaffle() public view returns(address){
+        return playerThatWonLastRaffle;
     }
 }
